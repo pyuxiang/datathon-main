@@ -1,151 +1,116 @@
 # TODO:
-# 1. Modify specific columns to differentiate eva and con
-# 2. Wreck the sensor anomalies (how?)
-# 3. Better sorting of data
+# 1. Make parser work for current project structure (DONE)
+# 2. Modify specific columns to differentiate eva and con
+# 3. Wreck the sensor anomalies (how?)
 
 
-import os, sys
+import os
 import csv
 from datetime import *
 
 mins_delta = 60 # 60 == 1 hour interval
 
+root_dir = os.getcwd() + "\\.."
+data_dir = root_dir + "\\data"
+temp_dir = root_dir + "\\temp"
+output_dir = root_dir + "\\output" + "\\" + str(mins_delta)
+
+
+    
 def main():
-    print("Begin monthly concatenation\n")
+    init_dir()
+    print("Starting job...")
     concat_monthly_data()
-    print("\nYearly concatenation\n")
+    print("Concatenating yearly data.")
     concat_yearly_data()
-    
+    print("Job completed.")
+    clear_temp_dir()
+    print("Artifacts cleaned.")
+    return
 
-def concat_yearly_data():
-    
-    file_path = os.getcwd() + "\\output\\" # Get concat data
-    concat_directory = os.listdir(file_path)
+def init_dir():
+    if "data" not in os.listdir(root_dir): os.mkdir(data_dir)
+    if "temp" not in os.listdir(root_dir): os.mkdir(temp_dir)
+    if "output" not in os.listdir(root_dir): os.mkdir(output_dir)
 
-    def tokenize_concat_filename(filename):
-        # August Chiller1.csv
-        month, chiller = filename.split(" ")
-        chiller = chiller[:-4] # remove .csv suffix
-        return [month, chiller]
-
-    def get_month(filename): return tokenize_concat_filename(filename)[0]
-    def get_chiller_id(filename): return tokenize_concat_filename(filename)[1]
+def clear_temp_dir():
+    if "temp" in os.listdir(root_dir):
+        for file in os.listdir(temp_dir):
+            os.remove(temp_dir + "\\" + file)
+    os.rmdir(temp_dir)
     
-    csv_files = []
-    for file in concat_directory:
-        if os.path.isfile(file_path + file) and file.endswith(".csv"):
-            csv_files.append(file)
-
-    # Separate datasets based on chiller id
-    chiller_ids = set(map(lambda x: tokenize_concat_filename(x)[1], csv_files))
-    month_order = {"January":1, "February":2, "March":3, "April":4,
-                   "May":5, "June":6, "July":7, "August":8,
-                   "September":9, "October":10, "November":11, "December":12}
-    
-    for chiller_id in chiller_ids:
-        chiller_dataset = list(filter(lambda x: get_chiller_id(x) == chiller_id, csv_files))
-        chiller_dataset.sort(key=lambda x: month_order[get_month(x)])
-        concat_yearly(chiller_dataset)
-
-    # Clear output directory
-    for file in csv_files:
-        os.remove(file_path + file)
-    os.rmdir("output")
-    
-    
-    
-def concat_yearly(dataset):
-    
-    outfilename = dataset[0].split(" ")[1]
-    if "yearly" not in os.listdir(): os.mkdir("yearly") # Create dir if not existing
-    outfile = open("yearly/" + outfilename, "w", newline="")
-    writer = csv.writer(outfile)
-
-    # Retrieve header only
-    with open("output/" + dataset[0]) as infile:
-        header = next(csv.reader(infile))
-        writer.writerow(header)
-
-    # Retrieve data only
-    for filename in dataset:
-        with open("output/" + filename) as infile:
-            reader = csv.reader(infile)
-            next(reader)
-            for row in reader:
-                writer.writerow(row)
-                
-    outfile.close()
 
 def concat_monthly_data():
 
-    # Build list of csv files in directory
-    file_path = os.getcwd() + "\\"
-    sys.path.insert(0, file_path) # Add path to env
-    
-    csv_files = []
-    for file in os.listdir(file_path):
-        if os.path.isfile(file_path + file) and file.endswith(".csv") and \
-               (not file.startswith("parsed")):
-            csv_files.append(file)
-
-    # Work in batches of four
-    # One batch = ["July Chiller1 conflow.csv",
-    #              "July Chiller1 evaflow.csv",
-    #              "July Chiller1 pm.csv",
-    #              "July Chiller1 temp.csv"]
-
-    # Check if multiples of four
-    if len(csv_files) % 4 != 0:
-        raise Exception("Wrong number of csv files ({})!".format(len(csv_files)))
-
-    csv_files.sort() # Ensure running order
-    # Check filenames consistent before creating batches
-    for i in range(0,len(csv_files),4):
-        expect_filename = csv_files[i]
-        expect_month, expect_chiller, expect_filetype = tokenize_filename(expect_filename)
-        filetypes = [expect_filetype]
-        for j in range(i+1, i+4):
-            curr_filename = csv_files[j]
-            curr_month, curr_chiller, curr_filetype = tokenize_filename(curr_filename)
-            if curr_month != expect_month:
-                raise Exception("Different months {} and {}!".format(expect_month, curr_month))
-            if curr_chiller != expect_chiller:
-                raise Exception("Different chillers {} and {}!".format(expect_chiller, curr_chiller))
-            if curr_filetype in filetypes:
-                raise Exception("Same filetype {} and {}!".format(expect_filetype, curr_filetype))
-            else:
-                filetypes.append(curr_filetype)
-
-    print("List of files:\n{}\n".format(csv_files))
-    while csv_files:
-
-        # Parse all files in batch
-        batch = []
-        for i in range(4):
-            batch.append(csv_files.pop(0))
-        print("Parsing:\n{}".format(batch))
-        for i in range(4):
-            parse_file(batch[i], mins_delta)
-        parsed_batch = list(map(lambda x: "parsed " + x, batch))
+    # Build list of csv files in data directory
+    print("List of directories:\n{}".format(os.listdir(data_dir)))    
+    for chiller in os.listdir(data_dir):
+        chiller_dir = data_dir + "\\" + chiller
+        print("Current directory\n{}\n".format(chiller_dir))
+        csv_files = []
         
-        # Assuming data is consistent and
-        # each parsed file has equal number of rows
-        print("Concatenating:\n{}".format(parsed_batch))
-        concat_monthly(parsed_batch)
-        print("Concatenation completed")
-        for item in parsed_batch:
-            os.remove(item)
-        print("Artifacts cleaned\n")
-        
+        for file in os.listdir(chiller_dir):
+            if os.path.isfile(chiller_dir + "\\" + file) \
+                   and file.endswith(".csv"):
+                csv_files.append(file)
+
+        # Work in batches of four
+        # One batch = ["July Chiller1 conflow.csv",
+        #              "July Chiller1 evaflow.csv",
+        #              "July Chiller1 pm.csv",
+        #              "July Chiller1 temp.csv"]
+
+        # Check if multiples of four
+        if len(csv_files) % 4 != 0:
+            raise Exception("Wrong number of csv files ({})!".format(len(csv_files)))
+
+        csv_files.sort() # Ensure running order
+        # Check filenames consistent before creating batches
+        for i in range(0,len(csv_files),4):
+            expect_filename = csv_files[i]
+            expect_month, expect_chiller, expect_filetype = tokenize_raw_filename(expect_filename)
+            filetypes = [expect_filetype]
+            for j in range(i+1, i+4):
+                curr_filename = csv_files[j]
+                curr_month, curr_chiller, curr_filetype = tokenize_raw_filename(curr_filename)
+                if curr_month != expect_month:
+                    raise Exception("Different months {} and {}!".format(expect_month, curr_month))
+                if curr_chiller != expect_chiller:
+                    raise Exception("Different chillers {} and {}!".format(expect_chiller, curr_chiller))
+                if curr_filetype in filetypes:
+                    raise Exception("Same filetype {} and {}!".format(expect_filetype, curr_filetype))
+                else:
+                    filetypes.append(curr_filetype)
+
+        print("List of files:\n{}\n".format(csv_files))
+        while csv_files:
+
+            # Parse all files in batch
+            batch = []
+            for i in range(4):
+                batch.append(csv_files.pop(0))
+            print("Current batch:\n{}".format(batch))
+            for i in range(4):
+                print("Parsing: {}".format(batch[i]))
+                parse_file(chiller_dir, batch[i], mins_delta)
+            parsed_batch = list(map(lambda x: "parsed " + x, batch))
+            
+            # Assuming data is consistent and
+            # each parsed file has equal number of rows
+            print("Parsing completed")
+            concat_monthly(parsed_batch)
+            print("Concatenation completed")
+            for item in parsed_batch:
+                os.remove(temp_dir + "\\" + item)
+            print("Batch artifacts cleaned\n")
 
 def concat_monthly(filenames):
-    infiles = list(map(lambda x: open(x), filenames)) # batch open files
+    infiles = list(map(lambda x: open(temp_dir + "\\" + x), filenames)) # batch open files
     readers = list(map(lambda x: csv.reader(x), infiles))
     
     month, chiller = filenames[0].split(" ")[1:3]
     outfilename = month + " " + chiller + ".csv"
-    if "output" not in os.listdir(): os.mkdir("output") # Create dir if not existing
-    outfile = open("output/" + outfilename, "w", newline="")
+    outfile = open(temp_dir + "\\" + outfilename, "w", newline="")
     writer = csv.writer(outfile)
 
     def concat_rows(rows):
@@ -168,17 +133,16 @@ def concat_monthly(filenames):
     map(lambda x: x.close(), infiles) # batch close files
     outfile.close()
 
-def tokenize_filename(filename):
+def tokenize_raw_filename(filename):
     month, chiller, filetype = filename.split(" ")
     filetype = filetype[:-4] # remove .csv suffix
     return month, chiller, filetype
 
-
-def parse_file(filename, mins_delta = 60):
+def parse_file(file_dir, filename, mins_delta=60):
     """ mins_delta specifies data duration interval """
 
     # Retrieve filetype and set parser_type
-    month, chiller, filetype = tokenize_filename(filename)
+    month, chiller, filetype = tokenize_raw_filename(filename)
     parser_type = None
     if filetype == "temp":
         parser_type = parse_temp_row
@@ -191,9 +155,8 @@ def parse_file(filename, mins_delta = 60):
     data_parser = lambda x: parse_row_data(parser_type(x))
 
     # CSV File IO
-    infile = open(filename)
-    # output file name "parsed August Chiller1 temp.csv"
-    outfile = open("parsed " + filename, "w", newline="")
+    infile = open(file_dir + "\\" + filename)
+    outfile = open(temp_dir + "\\parsed " + filename, "w", newline="")
     data = csv.reader(infile)
     writer = csv.writer(outfile)
 
@@ -242,9 +205,6 @@ def average_data(parsed_data, count):
         averaged_data.append(total_sum/count)
     return averaged_data
 
-
-
-
 ## PARSING LOGIC
 
 def unpack_timestamp(dt):
@@ -276,6 +236,60 @@ def parse_power_row(power_row):
 def parse_flow_row(flow_row):
     """ Get relevant flow columns """
     return flow_row[:1] + flow_row[5:10]
+
+
+
+
+
+def concat_yearly_data():
+
+    def tokenize_concat_filename(filename):
+        # August Chiller1.csv
+        month, chiller = filename.split(" ")
+        chiller = chiller[:-4] # remove .csv suffix
+        return [month, chiller]
+
+    def get_month(filename): return tokenize_concat_filename(filename)[0]
+    def get_chiller_id(filename): return tokenize_concat_filename(filename)[1]
+    
+    csv_files = []
+    for file in os.listdir(temp_dir):
+        if os.path.isfile(temp_dir + "\\" + file) and file.endswith(".csv"):
+            csv_files.append(file)
+
+    print(csv_files)
+
+    # Separate datasets based on chiller id
+    chiller_ids = set(map(lambda x: tokenize_concat_filename(x)[1], csv_files))
+    month_order = {"January":1, "February":2, "March":3, "April":4,
+                   "May":5, "June":6, "July":7, "August":8,
+                   "September":9, "October":10, "November":11, "December":12}
+    
+    for chiller_id in chiller_ids:
+        chiller_dataset = list(filter(lambda x: get_chiller_id(x) == chiller_id, csv_files))
+        chiller_dataset.sort(key=lambda x: month_order[get_month(x)])
+        concat_yearly(chiller_dataset)
+    
+def concat_yearly(dataset):
+    
+    outfilename = dataset[0].split(" ")[1]
+    outfile = open(output_dir + "\\" + outfilename, "w", newline="")
+    writer = csv.writer(outfile)
+
+    # Retrieve header only
+    with open(temp_dir + "\\" + dataset[0]) as infile:
+        header = next(csv.reader(infile))
+        writer.writerow(header)
+
+    # Retrieve data only
+    for filename in dataset:
+        with open(temp_dir + "\\" + filename) as infile:
+            reader = csv.reader(infile)
+            next(reader)
+            for row in reader:
+                writer.writerow(row)
+                
+    outfile.close()
 
 
 if __name__ == "__main__":
