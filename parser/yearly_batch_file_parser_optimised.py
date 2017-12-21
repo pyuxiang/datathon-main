@@ -4,7 +4,7 @@
 # 3. Wreck the sensor anomalies (how?)
 
 
-import os
+import os, sys
 import csv
 from datetime import *
 
@@ -18,6 +18,7 @@ output_dir = root_dir + "\\output" + "\\" + str(mins_delta)
 
     
 def main():
+    ## Check if output already exists, and terminate if existing
     init_dir()
     print("Starting job...")
     concat_monthly_data()
@@ -31,7 +32,10 @@ def main():
 def init_dir():
     if "data" not in os.listdir(root_dir): os.mkdir(data_dir)
     if "temp" not in os.listdir(root_dir): os.mkdir(temp_dir)
-    if "output" not in os.listdir(root_dir): os.mkdir(output_dir)
+    if "output" not in os.listdir(root_dir):
+        os.mkdir(root_dir + "\\output")
+    if str(mins_delta) not in os.listdir(root_dir + "\\output"):
+        os.mkdir(output_dir)
 
 def clear_temp_dir():
     if "temp" in os.listdir(root_dir):
