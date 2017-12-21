@@ -1,19 +1,24 @@
 # TODO:
 # 1. Make parser work for current project structure (DONE)
 # 2. Modify specific columns to differentiate eva and con
-# 3. Wreck the sensor anomalies (how?)
+# 3. Wreck the sensor anomalies (DONE -- validate_data_rows, but need support for arbitrary sensor data)
+# 4. For large time periods, use mean. Median for smaller intervals to eliminate outliers (DONE -- median implemented)
 
 
+
+
+import statistics # median
 import os, sys
 import csv
 from datetime import *
 
+custom_suffix = "mean"
 mins_delta = 60 # 60 == 1 hour interval
 
 root_dir = os.getcwd() + "\\.."
 data_dir = root_dir + "\\data"
 temp_dir = root_dir + "\\temp"
-output_dir = root_dir + "\\output" + "\\" + str(mins_delta)
+output_dir = root_dir + "\\output" + "\\" + str(mins_delta) + custom_suffix
 
 
     
@@ -34,7 +39,7 @@ def init_dir():
     if "temp" not in os.listdir(root_dir): os.mkdir(temp_dir)
     if "output" not in os.listdir(root_dir):
         os.mkdir(root_dir + "\\output")
-    if str(mins_delta) not in os.listdir(root_dir + "\\output"):
+    if str(mins_delta) + custom_suffix not in os.listdir(root_dir + "\\output"):
         os.mkdir(output_dir)
 
 def clear_temp_dir():
@@ -150,13 +155,16 @@ def parse_file(file_dir, filename, mins_delta=60):
     parser_type = None
     if filetype == "temp":
         parser_type = parse_temp_row
+        validate_row_data = lambda x: [True, x]
     elif filetype in ("conflow", "evaflow"):
         parser_type = parse_flow_row
+        validate_row_data = validate_flow_row_data
     elif filetype == "pm":
         parser_type = parse_power_row
+        validate_row_data = lambda x: [True, x]
     else:
         return Exception("Unknown filetype!")
-    data_parser = lambda x: parse_row_data(parser_type(x))
+    data_parser = lambda x: validate_row_data(parse_row_data(parser_type(x))) # Returns [bool, data_row]
 
     # CSV File IO
     infile = open(file_dir + "\\" + filename)
@@ -167,47 +175,50 @@ def parse_file(file_dir, filename, mins_delta=60):
     # Parser and writer
     starting_datetime = None
     parsed_data = []
-    count = 0
     first_row_skipped = False
     for row in data:
         if not first_row_skipped:
-            headers = ["year","month","day","hour","minute"] + parser_type(row)[1:]
+            data_headers = parser_type(row)[1:]
+            if filetype == "conflow": data_headers = list(map(lambda x: "con_" + x, data_headers)) # Badly maintained code
+            if filetype == "evaflow": data_headers = list(map(lambda x: "eva_" + x, data_headers)) # Cheap hack
+            headers = ["year","month","day","hour","minute"] + data_headers
             writer.writerow(headers)
             first_row_skipped = True
             continue
         if starting_datetime == None:
-            starting_datetime = data_parser(row)[0]
+            starting_datetime = data_parser(row)[1][0] # ignore validation here
             # Initialise datetime to 12:00:00.0
             starting_datetime = starting_datetime.replace(hour=0, minute=0, second=0, microsecond=0)
         
-        current_row = data_parser(row)
+        validation, current_row = data_parser(row)
         current_datetime = current_row[0]
         if current_datetime < starting_datetime + timedelta(minutes=mins_delta):
-            count += 1
-            parsed_data.append(current_row[1:])
+            if validation:
+                parsed_data.append(current_row[1:])
         else:
             ## Exceeded time interval -- Write to file
-            row_data = unpack_timestamp(starting_datetime) + average_data(parsed_data, count)
+            row_data = unpack_timestamp(starting_datetime) + median_data(parsed_data)
             writer.writerow(row_data)
 
             ## Reset and continue appending
             starting_datetime += timedelta(minutes=mins_delta) # Go to next time group
-            count = 1
             parsed_data = [current_row[1:]]
 
     ## Last row is not stored
-    row_data = unpack_timestamp(starting_datetime) + average_data(parsed_data, count)
+    row_data = unpack_timestamp(starting_datetime) + median_data(parsed_data)
     writer.writerow(row_data)
 
     infile.close()
     outfile.close()
 
-def average_data(parsed_data, count):
-    averaged_data = []
-    for i in range(len(parsed_data[0])):
-        total_sum = sum(map(lambda x: x[i], parsed_data))
-        averaged_data.append(total_sum/count)
-    return averaged_data
+def average_data(parsed_data): # For large time intervals
+    transpose = lambda x: list(map(list,zip(*x)))
+    average = lambda x: sum(x)/len(x)
+    return list(map(average, transpose(parsed_data)))
+
+def median_data(parsed_data): # For small time intervals
+    transpose = lambda x: list(map(list,zip(*x)))
+    return list(map(statistics.median, transpose(parsed_data)))        
 
 ## PARSING LOGIC
 
@@ -241,6 +252,28 @@ def parse_flow_row(flow_row):
     """ Get relevant flow columns """
     return flow_row[:1] + flow_row[5:10]
 
+def validate_flow_row_data(data_row):
+    return [True, data_row]
+
+    """ Current issue: Invalidating rows can remove entire timestamps.
+        Code not configured to handle missing timestamps. """
+    
+    # Controls:
+    # flowRate 0 - 300
+    # flowSpeed 0 - 3
+    # totalFlowRate > 0
+    # positiveTotalFlow > 0
+    # positiveTotalFlowDecimal > 0
+    flowRate, flowSpeed, totalFlowRate, positiveTotalFlow, positiveTotalFlowDecimal = data_row[1:]
+    if 0 < flowRate < 300:
+        if 0 < flowSpeed < 3:
+            if totalFlowRate > 0:
+                if positiveTotalFlow > 0:
+                    if positiveTotalFlowDecimal > 0:
+                        return [True, data_row]
+    return [False, data_row]
+                
+
 
 
 
@@ -260,8 +293,6 @@ def concat_yearly_data():
     for file in os.listdir(temp_dir):
         if os.path.isfile(temp_dir + "\\" + file) and file.endswith(".csv"):
             csv_files.append(file)
-
-    print(csv_files)
 
     # Separate datasets based on chiller id
     chiller_ids = set(map(lambda x: tokenize_concat_filename(x)[1], csv_files))
@@ -298,5 +329,4 @@ def concat_yearly(dataset):
 
 if __name__ == "__main__":
     main()
-
 
