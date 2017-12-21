@@ -2,6 +2,15 @@ import os, sys
 import csv
 from datetime import *
 
+mins_delta = 60 # 60 == 1 hour interval
+
+def main():
+    print("Begin monthly concatenation\n")
+    concat_monthly_data()
+    print("\nYearly concatenation\n")
+    concat_yearly_data()
+    
+
 def concat_yearly_data():
     
     file_path = os.getcwd() + "\\output\\" # Get concat data
@@ -10,7 +19,7 @@ def concat_yearly_data():
     def tokenize_concat_filename(filename):
         # August Chiller1.csv
         month, chiller = filename.split(" ")
-        chiller = filetype[:-4] # remove .csv suffix
+        chiller = chiller[:-4] # remove .csv suffix
         return [month, chiller]
 
     def get_month(filename): return tokenize_concat_filename(filename)[0]
@@ -23,7 +32,6 @@ def concat_yearly_data():
 
     # Separate datasets based on chiller id
     chiller_ids = set(map(lambda x: tokenize_concat_filename(x)[1], csv_files))
-    chiller_datasets = []
     month_order = {"January":1, "February":2, "March":3, "April":4,
                    "May":5, "June":6, "July":7, "August":8,
                    "September":9, "October":10, "November":11, "December":12}
@@ -31,14 +39,38 @@ def concat_yearly_data():
     for chiller_id in chiller_ids:
         chiller_dataset = list(filter(lambda x: get_chiller_id(x) == chiller_id, csv_files))
         chiller_dataset.sort(key=lambda x: month_order[get_month(x)])
-
-        ### Concatenation algorithm for chiller_dataset here
         concat_yearly(chiller_dataset)
+
+    # Clear output directory
+    for file in csv_files:
+        os.remove(file_path + file)
+    os.rmdir("output")
+    
+    
     
 def concat_yearly(dataset):
-    print(chiller_dataset)
+    
+    outfilename = dataset[0].split(" ")[1]
+    if "yearly" not in os.listdir(): os.mkdir("yearly") # Create dir if not existing
+    outfile = open("yearly/" + outfilename, "w", newline="")
+    writer = csv.writer(outfile)
 
-def main():
+    # Retrieve header only
+    with open("output/" + dataset[0]) as infile:
+        header = next(csv.reader(infile))
+        writer.writerow(header)
+
+    # Retrieve data only
+    for filename in dataset:
+        with open("output/" + filename) as infile:
+            reader = csv.reader(infile)
+            next(reader)
+            for row in reader:
+                writer.writerow(row)
+                
+    outfile.close()
+
+def concat_monthly_data():
 
     # Build list of csv files in directory
     file_path = os.getcwd() + "\\"
@@ -87,26 +119,26 @@ def main():
             batch.append(csv_files.pop(0))
         print("Parsing:\n{}".format(batch))
         for i in range(4):
-            parse_file(batch[i])
+            parse_file(batch[i], mins_delta)
         parsed_batch = list(map(lambda x: "parsed " + x, batch))
         
         # Assuming data is consistent and
         # each parsed file has equal number of rows
         print("Concatenating:\n{}".format(parsed_batch))
-        if "output" not in os.listdir(): os.mkdir("output") # Create dir if not existing
-        concat_files(parsed_batch)
+        concat_monthly(parsed_batch)
         print("Concatenation completed")
         for item in parsed_batch:
             os.remove(item)
         print("Artifacts cleaned\n")
         
 
-def concat_files(filenames):
+def concat_monthly(filenames):
     infiles = list(map(lambda x: open(x), filenames)) # batch open files
     readers = list(map(lambda x: csv.reader(x), infiles))
     
     month, chiller = filenames[0].split(" ")[1:3]
     outfilename = month + " " + chiller + ".csv"
+    if "output" not in os.listdir(): os.mkdir("output") # Create dir if not existing
     outfile = open("output/" + outfilename, "w", newline="")
     writer = csv.writer(outfile)
 
@@ -181,10 +213,14 @@ def parse_file(filename, mins_delta = 60):
             count += 1
             parsed_data.append(current_row[1:])
         else:
-            ## Exceeded time interval
+            ## Exceeded time interval -- Write to file
             row_data = unpack_timestamp(starting_datetime) + average_data(parsed_data, count)
             writer.writerow(row_data)
+
+            ## Reset and continue appending
             starting_datetime += timedelta(minutes=mins_delta) # Go to next time group
+            count = 1
+            parsed_data = [current_row[1:]]
 
     ## Last row is not stored
     row_data = unpack_timestamp(starting_datetime) + average_data(parsed_data, count)
