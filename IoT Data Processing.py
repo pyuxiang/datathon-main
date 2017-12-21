@@ -54,7 +54,7 @@ def lsttodict(lstoflsts):
 
     for i in range(len(headers)):
         #dictionary initialisation
-        output[headers[i]] = list(filter(lambda x: x[i].lstoflsts))[1:]
+        output[headers[i]] = list(filter(lambda x: x[i],lstoflsts))[1:]
 
     return output
         
@@ -69,7 +69,7 @@ def truncatelst(lst, mode, *params):
     output = []
 
     isindex = True #default
-    if type(mode) == string and mode != "index":
+    if type(mode) == str and mode != "index":
         isindex = False
 
     indexes = params
