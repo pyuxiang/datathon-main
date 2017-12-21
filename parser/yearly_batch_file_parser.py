@@ -3,11 +3,40 @@ import csv
 from datetime import *
 
 def concat_yearly_data():
-    # August Chiller1.csv
+    
     file_path = os.getcwd() + "\\output\\" # Get concat data
     concat_directory = os.listdir(file_path)
-    chiller1_files = list(filter(lambda x: 
+
+    def tokenize_concat_filename(filename):
+        # August Chiller1.csv
+        month, chiller = filename.split(" ")
+        chiller = filetype[:-4] # remove .csv suffix
+        return [month, chiller]
+
+    def get_month(filename): return tokenize_concat_filename(filename)[0]
+    def get_chiller_id(filename): return tokenize_concat_filename(filename)[1]
     
+    csv_files = []
+    for file in concat_directory:
+        if os.path.isfile(file_path + file) and file.endswith(".csv"):
+            csv_files.append(file)
+
+    # Separate datasets based on chiller id
+    chiller_ids = set(map(lambda x: tokenize_concat_filename(x)[1], csv_files))
+    chiller_datasets = []
+    month_order = {"January":1, "February":2, "March":3, "April":4,
+                   "May":5, "June":6, "July":7, "August":8,
+                   "September":9, "October":10, "November":11, "December":12}
+    
+    for chiller_id in chiller_ids:
+        chiller_dataset = list(filter(lambda x: get_chiller_id(x) == chiller_id, csv_files))
+        chiller_dataset.sort(key=lambda x: month_order[get_month(x)])
+
+        ### Concatenation algorithm for chiller_dataset here
+        concat_yearly(chiller_dataset)
+    
+def concat_yearly(dataset):
+    print(chiller_dataset)
 
 def main():
 
