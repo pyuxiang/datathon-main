@@ -1,6 +1,6 @@
 # TODO:
 # 1. Make parser work for current project structure (DONE)
-# 2. Modify specific columns to differentiate eva and con
+# 2. Modify specific columns to differentiate eva and con (DONE)
 # 3. Wreck the sensor anomalies (DONE -- validate_data_rows, but need support for arbitrary sensor data)
 # 4. For large time periods, use mean. Median for smaller intervals to eliminate outliers (DONE -- median implemented)
 
