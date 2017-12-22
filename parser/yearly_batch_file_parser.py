@@ -13,9 +13,14 @@
 ##  USER VARIABLES  ##
 ######################
 
+# Remember to also look through validation logic
+
 clean_temp_files = True
 custom_suffix = ""
 mins_delta = 30   # 60 == 1 hour interval
+
+average_data = median_data if mins_delta < 360 else mean_data # aggregation method
+
 
 
 
@@ -104,9 +109,6 @@ def parse_file(filename, mins_delta=60, file_dir=os.getcwd()):
     else:
         raise Exception("Unknown filetype!")
     data_parser = lambda x: validate_row_data(parse_row_data(parser_type(x))) # Returns [bool, data_row]
-
-    # Set averaging function based on mins_delta
-    average_data = median_data if mins_delta < 360 else mean_data
 
     # File IO
     infile = open(file_dir + "\\" + filename)
