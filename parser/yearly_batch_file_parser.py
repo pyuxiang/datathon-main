@@ -5,7 +5,7 @@
 # Important assumptions:
 # 1. Individual files start from 12:00:00 AM
 # 2. Data files must be contiguous, e.g. July -> August
-# 3. Filenames of format: "<month> <chiller> <type>.csv"
+# 3. Filenames of format: "/Chiller <num>/<month> <chiller> <type>.csv"
 
 
 
@@ -16,10 +16,9 @@
 # Remember to also look through validation logic
 
 clean_temp_files = True
-custom_suffix = ""
-mins_delta = 30   # 60 == 1 hour interval
-
-average_data = median_data if mins_delta < 360 else mean_data # aggregation method
+custom_suffix    = ""
+mins_delta       = 60   # 60 == 1 hour interval
+average_data     = median_data if mins_delta < 360 else mean_data # aggregation method
 
 
 
@@ -239,6 +238,7 @@ def concat_monthly_data():
     # Build list of csv files in data directory
     print("List of directories:\n{}".format(os.listdir(data_dir)))    
     for chiller in os.listdir(data_dir):
+        if not chiller.startswith("Chiller"): continue # ignore fault logs
         chiller_dir = data_dir + "\\" + chiller
         print("Current directory\n{}\n".format(chiller_dir))
         
@@ -355,8 +355,8 @@ def concat_yearly_data():
         chiller = chiller[:-4] # remove .csv suffix
         return [month, chiller]
 
-    def get_month(filename): return tokenize_concat_filename(filename)[0]
-    def get_chiller_id(filename): return tokenize_concat_filename(filename)[1]
+    get_month = lambda x: tokenize_concat_filename(x)[0]
+    get_chiller_id = lambda x: tokenize_concat_filename(x)[1]
     
     csv_files = []
     for file in os.listdir(temp_dir):
@@ -366,7 +366,7 @@ def concat_yearly_data():
             csv_files.append(file)
 
     # Separate datasets based on chiller id
-    chiller_ids = set(map(lambda x: tokenize_concat_filename(x)[1], csv_files))
+    chiller_ids = set(map(get_chiller_id, csv_files))
     month_order = {"January":1, "February":2, "March":3, "April":4,
                    "May":5, "June":6, "July":7, "August":8,
                    "September":9, "October":10, "November":11, "December":12}
