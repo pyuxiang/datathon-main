@@ -8,22 +8,6 @@
 # 3. Filenames of format: "/Chiller <num>/<month> <chiller> <type>.csv"
 
 
-
-######################
-##  USER VARIABLES  ##
-######################
-
-# Remember to also look through validation logic
-
-clean_temp_files = True
-custom_suffix    = ""
-mins_delta       = 60   # 60 == 1 hour interval
-average_data     = median_data if mins_delta < 360 else mean_data # aggregation method
-
-
-
-
-
 #####################
 ##  MAIN FUNCTION  ##
 #####################
@@ -46,6 +30,27 @@ def main():
     print("Artifacts cleaned.")
     return
 
+
+
+######################
+##  USER VARIABLES  ##
+######################
+
+# Remember to also look through validation logic
+
+clean_temp_files = True
+custom_suffix    = ""
+mins_delta       = 60   # 60 == 1 hour interval
+
+def mean_data(parsed_data): # For large time intervals, e.g. >= 6 hours
+    transpose = lambda x: list(map(list,zip(*x)))
+    return list(map(statistics.mean, transpose(parsed_data)))
+
+def median_data(parsed_data): # For small time intervals, e.g. < 6 hours
+    transpose = lambda x: list(map(list,zip(*x)))
+    return list(map(statistics.median, transpose(parsed_data)))
+
+average_data     = median_data if mins_delta < 360 else mean_data # aggregation method
 
 
 
@@ -157,13 +162,7 @@ def parse_file(filename, mins_delta=60, file_dir=os.getcwd()):
     infile.close()
     outfile.close()
 
-def mean_data(parsed_data): # For large time intervals, e.g. >= 6 hours
-    transpose = lambda x: list(map(list,zip(*x)))
-    return list(map(statistics.mean, transpose(parsed_data)))
 
-def median_data(parsed_data): # For small time intervals, e.g. < 6 hours
-    transpose = lambda x: list(map(list,zip(*x)))
-    return list(map(statistics.median, transpose(parsed_data)))
 
 #####################
 ##  Parsing Logic  ##
@@ -236,7 +235,7 @@ def validate_flow_row_data(data_row):
 def concat_monthly_data():
 
     # Build list of csv files in data directory
-    listed_dir = list(filter(lambda x: x.startswith("Chiller"), os.listdir(data_dir))))
+    listed_dir = list(filter(lambda x: x.startswith("Chiller"), os.listdir(data_dir)))
     print("List of directories:\n{}".format(listed_dir))    
     for chiller in listed_dir:
         if not chiller.startswith("Chiller"): continue # ignore fault logs
