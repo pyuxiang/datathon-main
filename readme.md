@@ -21,13 +21,14 @@
     - Error type: string (case-sensitive)
     - Start and end datetimes: Year must be specified. Every successful integer input will prompt further details, e.g. month, day, hour, minute. All initial datetimes will be resolved to the earliest possible datetime within the year accounting for specified bounds, and matched to a narrower domain (start <= data < end) according to availability of data.
 
-| Datetime   | User input | Data       |
+| Datetime   | User input | Dataset    |
 |:----------:|:----------:|:----------:|
 | 2017-08-01 |            |            |
 | nil        | 2017-08-02 |            |
 | 2017-08-03 |            | 2017-08-03 |
-| 2017-08-04 |            | 2017-08-04 |
-| nil        |            | 2017-08-05 |
+| nil        |            | 2017-08-04 |       
+| 2017-08-05 |            | 2017-08-05 |
+| nil        |            |            |
 | 2017-08-06 | 2017-08-06 |            |
 
 
