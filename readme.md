@@ -1,7 +1,7 @@
 # Datathon 2.0
 ## How to use
-File the fault logs and chiller statistics under [data](../data).
-Clone repository and run the relevant [parsers](../parsers) with Python.
+File the fault logs and chiller statistics under data.
+Clone repository and run the relevant parsers with Python.
 
 ## TODO:
 1. Complete batch parsing of log faults

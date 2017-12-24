@@ -39,7 +39,10 @@ def main():
     clear_temp_dir()
     initialise_dir()
     print("Starting job...")
-    # Fill here
+    batch_parse_files()
+    print()
+    print("Concatenating yearly data.")
+    concat_yearly_data()
     print("Job completed.")
     if clean_temp_files: clear_temp_dir()
     print("Artifacts cleaned.")
@@ -84,11 +87,32 @@ def clear_temp_dir():
 
 pos_err = 1
 neg_err = 0
+parsed_prefix = "ERROR"
 
 def tokenize_raw_filename(filename):
     default_log, start, end = filename.split("_")
     year, month, day = start.split("-")
     return year, month, day
+
+def batch_parse_files():
+
+    # Enter fault logs directory
+    fault_dir = list(filter(lambda x: x.startswith("Fault"), os.listdir(data_dir)))
+    if len(fault_dir) != 1:
+        print("Error logs should be filed under '/Fault Logs' in data dir")
+        sys.exit(1)
+    fault_dir = data_dir + "\\" + fault_dir[0]
+
+    csv_files = []
+    for file in os.listdir(fault_dir):
+        if os.path.isfile(fault_dir + "\\" + file) and file.endswith(".csv"):
+            csv_files.append(file)
+
+    print("List of files:\n{}\n".format(csv_files))
+    while csv_files:
+        curr_file = csv_files.pop(0)
+        print("Parsing: {}".format(curr_file))
+        parse_file(curr_file, mins_delta, fault_dir)
 
 def parse_file(filename, mins_delta=60, file_dir=os.getcwd()):
     """ mins_delta specifies data duration interval """
@@ -132,7 +156,8 @@ def parse_file(filename, mins_delta=60, file_dir=os.getcwd()):
         outfiles[chiller] = {}
         writers[chiller] = {}
         for err in dataset[chiller]:
-            outfilename = "{} {} {} {}".format(year, month, "Chiller" + chiller[2], err)
+            outfilename = "{} {} {} {} {}".format(\
+                parsed_prefix, year, month, "Chiller" + chiller[2], err)
             outfiles[chiller][err] = create_filename(outfilename)
             writers[chiller][err] = csv.writer(outfiles[chiller][err])
 
@@ -191,4 +216,87 @@ def parse_row_data(data_row):
 def parse_fault(fault_row):
     # ignore historical status, assuming the alternative is predicted
     return fault_row[:-1]
+
+
+
+
+############################
+##  YEARLY CONCAT PARSER  ##
+############################
+
+def tokenize_concat_filename(filename):
+    tokens = filename.split(" ") # 2017 07 Chiller1 FLOW SWITCH.csv
+    year, month, chiller = tokens[1:4]
+    err = " ".join(tokens[4:])[:-4] # remove .csv suffix
+    return [int(year), int(month), chiller, err]
+
+def concat_yearly_data():
+    
+    get_year = lambda x: tokenize_concat_filename(x)[0]
+    get_month = lambda x: tokenize_concat_filename(x)[1] # Numeric
+    get_chiller_id = lambda x: tokenize_concat_filename(x)[2]
+    get_error_id = lambda x: tokenize_concat_filename(x)[3]
+
+    csv_files = []
+    for file in os.listdir(temp_dir):
+        if os.path.isfile(temp_dir + "\\" + file) \
+                and file.endswith(".csv") \
+                and file.startswith("ERROR "):
+            csv_files.append(file)
+
+    # Separate datasets based on chiller id AND error_id
+    chiller_ids = set(map(get_chiller_id, csv_files))
+    error_ids = set(map(get_error_id, csv_files))
+    for chiller_id in chiller_ids:
+        for error_id in error_ids:
+            fault_dataset = list(filter(\
+                lambda x: get_chiller_id(x) == chiller_id and get_error_id(x) == error_id,\
+                csv_files))
+            
+            if fault_dataset:
+                fault_dataset.sort(key=get_month)
+                fault_dataset.sort(key=get_year)
+                print(fault_dataset)
+                concat_yearly(fault_dataset)
+    
+def concat_yearly(dataset):
+
+    year, month, chiller, err = tokenize_concat_filename(dataset[0])
+    outfilename = chiller + " " + err + ".csv" # chiller id
+    outfile = open(agg_dir + "\\" + outfilename, "w", newline="")
+    writer = csv.writer(outfile)
+
+    # Retrieve header only
+    with open(temp_dir + "\\" + dataset[0]) as infile:
+        header = next(csv.reader(infile))
+        writer.writerow(header)
+
+    # Retrieve data only
+    for filename in dataset:
+        with open(temp_dir + "\\" + filename) as infile:
+            reader = csv.reader(infile)
+            next(reader)
+            for row in reader:
+                writer.writerow(row)
+                
+    outfile.close()
+
+if __name__ == "__main__":
+    main()
+    
+    
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
 

@@ -236,8 +236,9 @@ def validate_flow_row_data(data_row):
 def concat_monthly_data():
 
     # Build list of csv files in data directory
-    print("List of directories:\n{}".format(os.listdir(data_dir)))    
-    for chiller in os.listdir(data_dir):
+    listed_dir = list(filter(lambda x: x.startswith("Chiller"), os.listdir(data_dir))))
+    print("List of directories:\n{}".format(listed_dir))    
+    for chiller in listed_dir:
         if not chiller.startswith("Chiller"): continue # ignore fault logs
         chiller_dir = data_dir + "\\" + chiller
         print("Current directory\n{}\n".format(chiller_dir))
